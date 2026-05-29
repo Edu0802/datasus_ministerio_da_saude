@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from sqlalchemy import create_engine
 import dash
 from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output
@@ -39,28 +38,12 @@ h1 { color: #39FF14; margin: 0; font-size: 26px; letter-spacing: 1px; font-weigh
 ''')
 
 # ==============================================================================
-# CONEXÃO COM O BANCO DE DADOS
+# LEITURA OTIMIZADA DO ARQUIVO CSV LOCAL
 # ==============================================================================
-HOST = "bigdata.dataiesb.com"
-BANCO = "iesb"
-USUARIO = "data_iesb"
-SENHA = "iesb"
-PORTA = "5432"
+# Carrega o arquivo CSV que você subiu no mesmo repositório do GitHub
+df = pd.read_csv("dados_sus.csv")
 
-engine = create_engine(f"postgresql://{USUARIO}:{SENHA}@{HOST}:{PORTA}/{BANCO}")
-
-query = """
-SELECT
-    ano_aih, uf_sigla, nome_municipio, regiao_nome,
-    AVG(numero_habitantes) as numero_habitantes,
-    SUM(qtd_total) as qtd_total, SUM(vl_total) as vl_total,
-    SUM(vl_02) as vl_02, SUM(vl_03) as vl_03, SUM(vl_04) as vl_04, SUM(vl_05) as vl_05, SUM(vl_07) as vl_07,
-    SUM(vl_0409) as vl_0409, SUM(vl_0415) as vl_0415, SUM(vl_0304) as vl_0304, SUM(vl_0201) as vl_0201, SUM(vl_0202) as vl_0202
-FROM sus_aih
-GROUP BY ano_aih, uf_sigla, nome_municipio, regiao_nome;
-"""
-
-df = pd.read_sql(query, con=engine)
+# Tratamento e limpeza rápida dos dados carregados
 df['uf_sigla'] = df['uf_sigla'].str.strip().str.upper()
 df['nome_municipio'] = df['nome_municipio'].str.strip()
 df['regiao_nome'] = df['regiao_nome'].str.strip()
@@ -77,7 +60,7 @@ opcoes_anos = [{"label": str(a), "value": a} for a in anos_disponiveis]
 # CONFIGURAÇÃO DO DASHBOARD
 # ==============================================================================
 app = dash.Dash(__name__)
-server = app.server  # Crucial para o Gunicorn funcionar na nuvem
+server = app.server  # Crucial para o funcionamento do Gunicorn na nuvem da Render
 
 app.layout = html.Div([
     html.Div([
@@ -202,19 +185,14 @@ def pipeline_dashboard(ano, uf, municipio, grupo, subgrupo):
     fig_mun = px.bar(df_f.groupby("nome_municipio")["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(14), x="nome_municipio", y="vl_total", title="Gastos Hospitalares por Município", color_discrete_sequence=["#FF5C00"])
     fig_mun.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20))
 
-    df_temp = df.copy()
-    if uf: df_temp = df_temp[df_temp["uf_sigla"] == uf]
-    if municipio: df_temp = df_temp[df_temp["nome_municipio"] == municipio]
-    if subgrupo: df_temp["vl_total"] = df_temp[subgrupo]
-    elif grupo: df_temp["vl_total"] = df_temp[grupo]
-    fig_time = px.line(df_temp.groupby("ano_aih")["vl_total"].sum().reset_index().sort_values(by="ano_aih"), x="ano_aih", y="vl_total", markers=True, title="Evolução Anual Histórica do Orçamento")
+    fig_time = px.line(df.groupby("ano_aih")["vl_total"].sum().reset_index().sort_values(by="ano_aih"), x="ano_aih", y="vl_total", markers=True, title="Evolução Anual Histórica do Orçamento")
     fig_time.update_traces(line_color="#39FF14", marker=dict(color="#FFFF00", size=8))
     fig_time.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20), xaxis=dict(type='category'))
 
     fig_pie = go.Figure(data=[go.Pie(labels=['Diagnóstico', 'Clínico', 'Cirúrgico', 'Transplantes', 'OPME'], values=[df_f['vl_02'].sum(), df_f['vl_03'].sum(), df_f['vl_04'].sum(), df_f['vl_05'].sum(), df_f['vl_07'].sum()], hole=.4, marker=dict(colors=["#00ffff", "#39FF14", "#FF5C00", "#FFFF00", "#FF007F"]))])
     fig_pie.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", title="Distribuição de Recursos por Grupo SUS", margin=dict(l=20, r=20, t=40, b=20))
 
-    fig_top = px.bar(df_f.groupby(["nome_municipio", "uf_sigla"])["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(10), x="vl_total", y="nome_municipio", orientation="h", title="Top 10 Municípios com Maior Pressão Orçamentária", color="vl_total", color_continuous_scale=["#002200", "#39FF14", "#FFFF00", "#FF5C00"])
+    fig_top = px.bar(df_f.groupby(["nome_municipio", "uf_sigla"])["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(10), x="vl_total", y="nome_municipio", orientation="h", title="Top 10 Registros com Maior Pressão Orçamentária", color="vl_total", color_continuous_scale=["#002200", "#39FF14", "#FFFF00", "#FF5C00"])
     fig_top.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=40, r=20, t=40, b=20))
 
     df_tab = df_f.sort_values(by="vl_total", ascending=False).head(150).copy()
