@@ -8,6 +8,36 @@ from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output
 
 # ==============================================================================
+# DICIONÁRIOS E MAPEAMENTOS ESTRUTURAIS (DADOS DO SUS)
+# ==============================================================================
+DE_PAR_UFS = {
+    'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas', 'BA': 'Bahia',
+    'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo', 'GO': 'Goiás',
+    'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul', 'MG': 'Minas Gerais',
+    'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná', 'PE': 'Pernambuco', 'PI': 'Piauí',
+    'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte', 'RS': 'Rio Grande do Sul',
+    'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina', 'SP': 'São Paulo',
+    'SE': 'Sergipe', 'TO': 'Tocantins'
+}
+
+SUBGRUPOS_POR_GRUPO = {
+    'vl_02': {'vl_0201': 'Exames Lab', 'vl_0202': 'Imagem'},
+    'vl_03': {'vl_0304': 'Partos'},
+    'vl_04': {'vl_0409': 'Ortopedia', 'vl_0415': 'Trauma'}
+}
+
+NOMES_GRUPOS = {
+    'vl_02': 'Diagnóstico', 'vl_03': 'Clínico', 'vl_04': 'Cirúrgico', 
+    'vl_05': 'Transplantes', 'vl_07': 'OPME'
+}
+
+PAI_DO_SUBGRUPO = {
+    'vl_0201': 'vl_02', 'vl_0202': 'vl_02',
+    'vl_0304': 'vl_03',
+    'vl_0409': 'vl_04', 'vl_0415': 'vl_04'
+}
+
+# ==============================================================================
 # ESTILIZAÇÃO CUSTOMIZADA (CSS)
 # ==============================================================================
 if not os.path.exists('assets'):
@@ -40,7 +70,6 @@ h1 { color: #39FF14; margin: 0; font-size: 26px; letter-spacing: 1px; font-weigh
 # ==============================================================================
 # LEITURA OTIMIZADA DO ARQUIVO CSV LOCAL
 # ==============================================================================
-# Carrega o arquivo CSV que você subiu no mesmo repositório do GitHub
 df = pd.read_csv("dados_sus.csv")
 
 # Tratamento e limpeza rápida dos dados carregados
@@ -51,6 +80,7 @@ colunas_valores = [c for c in df.columns if c.startswith('vl_') or c.startswith(
 df[colunas_valores] = df[colunas_valores].fillna(0)
 df['numero_habitantes'] = df['numero_habitantes'].fillna(0).astype(int)
 df['ano_aih'] = df['ano_aih'].astype(int)
+df['uf_extenso'] = df['uf_sigla'].map(DE_PAR_UFS).fillna(df['uf_sigla'])
 
 anos_disponiveis = sorted(df['ano_aih'].unique())
 ufs_disponiveis = sorted(df['uf_sigla'].unique())
@@ -72,11 +102,11 @@ app.layout = html.Div([
             html.Div([html.Label("Ano", style={"font-size": "11px", "color": "#888888"}), dcc.Dropdown(id="filtro-ano", options=opcoes_anos, value=None, placeholder="Todos", clearable=True)], style={"width": "120px", "margin-right": "10px"}),
             html.Div([html.Label("UF", style={"font-size": "11px", "color": "#888888"}), dcc.Dropdown(id="filtro-uf", options=[{"label": u, "value": u} for u in ufs_disponiveis], value=None, placeholder="Todos")], style={"width": "110px", "margin-right": "10px"}),
             html.Div([html.Label("Município", style={"font-size": "11px", "color": "#888888"}), dcc.Dropdown(id="filtro-municipio", placeholder="Todos")], style={"width": "180px", "margin-right": "10px"}),
-            html.Div([html.Label("Grupo SUS", style={"font-size": "11px", "color": "#888888"}), dcc.Dropdown(id="filtro-grupo", options=[
-                {"label": "02 - Diagnóstico", "value": "vl_02"}, {"label": "03 - Clínico", "value": "vl_03"}, {"label": "04 - Cirúrgico", "value": "vl_04"}, {"label": "05 - Transplantes", "value": "vl_05"}, {"label": "07 - OPME", "value": "vl_07"}
-            ], placeholder="Todos", clearable=True)], style={"width": "160px", "margin-right": "10px"}),
+            html.Div([html.Label("Grupo SUS", style={"font-size": "11px", "color": "#888888"}), dcc.Dropdown(id="filtro-grupo", options=[{"label": f"{v.replace('vl_','')} - {k}", "value": v} for v, k in NOMES_GRUPOS.items()], placeholder="Todos", clearable=True)], style={"width": "160px", "margin-right": "10px"}),
             html.Div([html.Label("Subgrupo Crítico", style={"font-size": "11px", "color": "#888888"}), dcc.Dropdown(id="filtro-subgrupo", options=[
-                {"label": "0409 - Ortopedia", "value": "vl_0409"}, {"label": "0415 - Trauma", "value": "vl_0415"}, {"label": "0304 - Partos", "value": "vl_0304"}, {"label": "0201 - Exames Lab", "value": "vl_0201"}, {"label": "0202 - Imagem", "value": "vl_0202"}
+                {"label": "0201 - Exames Lab", "value": "vl_0201"}, {"label": "0202 - Imagem", "value": "vl_0202"},
+                {"label": "0304 - Partos", "value": "vl_0304"},
+                {"label": "0409 - Ortopedia", "value": "vl_0409"}, {"label": "0415 - Trauma", "value": "vl_0415"}
             ], placeholder="Todos", clearable=True)], style={"width": "160px"})
         ], style={"display": "flex", "alignItems": "center"})
     ], className="secao", style={"display": "flex", "alignItems": "center", "justifyContent": "space-between", "borderBottom": "2px solid #39FF14"}),
@@ -132,12 +162,18 @@ app.layout = html.Div([
     ], className="secao")
 ])
 
+# ==============================================================================
+# CALLBACK DE DINÂMICA GEOGRÁFICA
+# ==============================================================================
 @app.callback(Output("filtro-municipio", "options"), Input("filtro-uf", "value"))
 def atualizar_dropdown_municipios(uf_selecionada):
     if not uf_selecionada:
         return [{"label": m, "value": m} for m in sorted(df["nome_municipio"].unique())]
     return [{"label": m, "value": m} for m in sorted(df[df["uf_sigla"] == uf_selecionada]["nome_municipio"].unique())]
 
+# ==============================================================================
+# CALLBACK MESTRE PIPELINE (INDEPENDÊNCIA DE GRUPO/SUBGRUPO + LINHA DO TEMPO FIX)
+# ==============================================================================
 @app.callback(
     Output("kpi-internacoes", "children"), Output("kpi-gastos", "children"), Output("kpi-custo-medio", "children"),
     Output("kpi-maior-uf", "children"), Output("kpi-maior-mun", "children"), Output("grafico-gastos-uf", "figure"),
@@ -148,58 +184,140 @@ def atualizar_dropdown_municipios(uf_selecionada):
 )
 def pipeline_dashboard(ano, uf, municipio, grupo, subgrupo):
     df_f = df.copy()
-    if ano: df_f = df_f[df_f["ano_aih"] == int(ano)]
+
     if uf: df_f = df_f[df_f["uf_sigla"] == uf]
     if municipio: df_f = df_f[df_f["nome_municipio"] == municipio]
+
+    df_temporal = df_f.copy()
+    if ano: df_f = df_f[df_f["ano_aih"] == int(ano)]
+
+    coluna_alvo = "vl_total"
+    filtrado_por_procedimento = False
+
+    # Lógica inteligente e combinada de filtragem estrutural
     if subgrupo:
         df_f = df_f[df_f[subgrupo] > 0]
+        df_temporal = df_temporal[df_temporal[subgrupo] > 0]
+        coluna_alvo = subgrupo
+        filtrado_por_procedimento = True
         df_f["vl_total"] = df_f[subgrupo]
     elif grupo:
         df_f = df_f[df_f[grupo] > 0]
+        df_temporal = df_temporal[df_temporal[grupo] > 0]
+        coluna_alvo = grupo
+        filtrado_por_procedimento = True
         df_f["vl_total"] = df_f[grupo]
 
     if df_f.empty:
         return "0", "R$ 0,00", "R$ 0,00", "N/A", "N/A", go.Figure(), go.Figure(), go.Figure(), go.Figure(), go.Figure(), []
 
-    total_int = df_f["qtd_total"].sum()
-    total_gasto = df_f["vl_total"].sum()
-    media_municipio = df_f.groupby("nome_municipio")["vl_total"].sum().mean()
+    if filtrado_por_procedimento:
+        total_int = len(df_f)
+    else:
+        total_int = df_f["qtd_total"].sum()
 
-    def fmt_kpi(v):
-        if v >= 1e9: return f"R$ {v/1e9:,.2f} Bi".replace(".", ",").replace(",", ".", 1)
-        if v >= 1e6: return f"R$ {v/1e6:,.2f} Mi".replace(".", ",").replace(",", ".", 1)
-        return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    total_gasto = df_f[coluna_alvo].sum()
+    df_media_mun = df_f.groupby("nome_municipio")[coluna_alvo].sum()
+    media_municipio = df_media_mun.mean() if not df_media_mun.empty else 0
+
+    # Formatadores PT-BR
+    def formatar_valor_ptbr(valor):
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def formatar_valor_kpi(valor):
+        if valor >= 1_000_000_000: return f"R$ {valor / 1_000_000_000:,.2f} Bi".replace(".", ",").replace(",", ".", 1)
+        elif valor >= 1_000_000: return f"R$ {valor / 1_000_000:,.2f} Mi".replace(".", ",").replace(",", ".", 1)
+        else: return formatar_valor_ptbr(valor)
 
     df_uf_max = df_f.groupby("uf_sigla")["vl_total"].sum()
-    maior_uf = f"{df_uf_max.idxmax()} - {fmt_kpi(df_uf_max.max())}" if not df_uf_max.empty else "N/A"
+    maior_uf = f"{DE_PAR_UFS.get(df_uf_max.idxmax(), df_uf_max.idxmax())} - {formatar_valor_kpi(df_uf_max.max())}" if not df_uf_max.empty and df_uf_max.max() > 0 else "N/A"
+    
     df_mun_max = df_f.groupby("nome_municipio")["vl_total"].sum()
-    maior_mun = f"{df_mun_max.idxmax()} ({df_f[df_f['nome_municipio'] == df_mun_max.idxmax()]['uf_sigla'].values[0]})" if not df_mun_max.empty else "N/A"
+    if not df_mun_max.empty and df_mun_max.max() > 0:
+        mun_id = df_mun_max.idxmax()
+        uf_pertencente = df_f[df_f['nome_municipio'] == mun_id]['uf_sigla'].values[0]
+        maior_mun = f"{mun_id} ({uf_pertencente})"
+    else:
+        maior_mun = "N/A"
 
     str_int = f"{int(total_int):,}".replace(",", ".")
-    str_gas = fmt_kpi(total_gasto)
-    str_med = fmt_kpi(media_municipio)
+    str_gas = formatar_valor_kpi(total_gasto)
+    str_med = formatar_valor_kpi(media_municipio)
 
-    fig_uf = px.bar(df_f.groupby("uf_sigla")["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(14), x="uf_sigla", y="vl_total", title="Gastos Hospitalares por UF", color_discrete_sequence=["#00ffff"])
-    fig_uf.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20))
+    label_hover_config = dict(bgcolor="#2323FF", bordercolor="#39FF14", font_size=13, font_color="#FFFFFF", font_family="DM Sans")
 
-    fig_mun = px.bar(df_f.groupby("nome_municipio")["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(14), x="nome_municipio", y="vl_total", title="Gastos Hospitalares por Município", color_discrete_sequence=["#FF5C00"])
-    fig_mun.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20))
+    # GRÁFICO 1: Gastos por UF
+    df_g_uf = df_f.groupby(["uf_sigla", "uf_extenso"])["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(14)
+    df_g_uf["vl_ptbr"] = df_g_uf["vl_total"].apply(formatar_valor_ptbr)
+    fig_uf = px.bar(df_g_uf, x="uf_sigla", y="vl_total", custom_data=["uf_extenso", "vl_ptbr"], title="Gastos Hospitalares por UF", color_discrete_sequence=["#00ffff"])
+    fig_uf.update_traces(hovertemplate="<b>%{customdata[0]}</b><br>Valor Destinado: %{customdata[1]}<extra></extra>", hoverlabel=label_hover_config)
+    fig_uf.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20), xaxis_title="UF", yaxis_title="Montante (R$)")
 
-    fig_time = px.line(df.groupby("ano_aih")["vl_total"].sum().reset_index().sort_values(by="ano_aih"), x="ano_aih", y="vl_total", markers=True, title="Evolução Anual Histórica do Orçamento")
-    fig_time.update_traces(line_color="#39FF14", marker=dict(color="#FFFF00", size=8))
-    fig_time.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20), xaxis=dict(type='category'))
+    # GRÁFICO 2: Gastos por Município
+    df_g_mun = df_f.groupby("nome_municipio")["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(14)
+    df_g_mun["vl_ptbr"] = df_g_mun["vl_total"].apply(formatar_valor_ptbr)
+    fig_mun = px.bar(df_g_mun, x="nome_municipio", y="vl_total", custom_data=["vl_ptbr"], title="Gastos Hospitalares por Município", color_discrete_sequence=["#FF5C00"])
+    fig_mun.update_traces(hovertemplate="<b>%{x}</b><br>Valor Destinado: %{customdata[0]}<extra></extra>", hoverlabel=label_hover_config)
+    fig_mun.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20), xaxis_title="Município", yaxis_title="Montante (R$)")
 
-    fig_pie = go.Figure(data=[go.Pie(labels=['Diagnóstico', 'Clínico', 'Cirúrgico', 'Transplantes', 'OPME'], values=[df_f['vl_02'].sum(), df_f['vl_03'].sum(), df_f['vl_04'].sum(), df_f['vl_05'].sum(), df_f['vl_07'].sum()], hole=.4, marker=dict(colors=["#00ffff", "#39FF14", "#FF5C00", "#FFFF00", "#FF007F"]))])
-    fig_pie.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", title="Distribuição de Recursos por Grupo SUS", margin=dict(l=20, r=20, t=40, b=20))
+    # GRÁFICO 3: Linha do Tempo Corrigida (Calcula estritamente o macro/micro selecionado)
+    df_g_time = df_temporal.groupby("ano_aih")[coluna_alvo].sum().reset_index().sort_values(by="ano_aih")
+    df_g_time["vl_ptbr"] = df_g_time[coluna_alvo].apply(formatar_valor_ptbr)
+    fig_time = px.line(df_g_time, x="ano_aih", y=coluna_alvo, markers=True, custom_data=["vl_ptbr"], title="Evolução Anual Histórica do Orçamento")
+    fig_time.update_traces(line_color="#39FF14", marker=dict(color="#FFFF00", size=8), hovertemplate="<b>Ano: %{x}</b><br>Orçamento SUS: %{customdata[0]}<extra></extra>", hoverlabel=label_hover_config)
+    fig_time.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=20, r=20, t=40, b=20), xaxis=dict(type='category', title="Ano"), yaxis_title="Gasto Acumulado (R$)")
 
-    fig_top = px.bar(df_f.groupby(["nome_municipio", "uf_sigla"])["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(10), x="vl_total", y="nome_municipio", orientation="h", title="Top 10 Registros com Maior Pressão Orçamentária", color="vl_total", color_continuous_scale=["#002200", "#39FF14", "#FFFF00", "#FF5C00"])
-    fig_top.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=40, r=20, t=40, b=20))
+    # GRÁFICO 4: Pizza Inteligente (Bug corrigido de group -> grupo)
+    if subgrupo:
+        pai = PAI_DO_SUBGRUPO[subgrupo]
+        mapeamento_filhos = SUBGRUPOS_POR_GRUPO[pai]
+        grupos_labels = list(mapeamento_filhos.values())
+        grupos_valores = [df_f[col].sum() for col in mapeamento_filhos.keys()]
+        titulo_pizza = f"Contexto Interno: Subgrupos de {NOMES_GRUPOS[pai]}"
+    elif grupo and grupo in SUBGRUPOS_POR_GRUPO:
+        mapeamento_filhos = SUBGRUPOS_POR_GRUPO[grupo]
+        grupos_labels = list(mapeamento_filhos.values())
+        grupos_valores = [df_f[col].sum() for col in mapeamento_filhos.keys()]
+        titulo_pizza = f"Abertura de Subgrupos: {NOMES_GRUPOS[grupo]}"
+    elif grupo:
+        nome_atual = NOMES_GRUPOS.get(grupo, "Selecionado")
+        total_geral_painel = df_f["vl_total"].sum()
+        grupos_labels = [nome_atual, 'Demais Custos da Rede']
+        grupos_valores = [df_f[grupo].sum(), max(0, total_geral_painel - df_f[grupo].sum())]
+        titulo_pizza = f"Participação do Grupo: {nome_atual}"
+    else:
+        grupos_labels = ['Diagnóstico', 'Clínico', 'Cirúrgico', 'Transplantes', 'OPME']
+        grupos_valores = [df_f['vl_02'].sum(), df_f['vl_03'].sum(), df_f['vl_04'].sum(), df_f['vl_05'].sum(), df_f['vl_07'].sum()]
+        titulo_pizza = "Distribuição de Recursos por Grupo SUS"
 
+    valores_fatias_ptbr = [formatar_valor_ptbr(v) for v in grupos_valores]
+
+    fig_pie = go.Figure(data=[go.Pie(
+        labels=grupos_labels, values=grupos_valores, hole=.4,
+        customdata=valores_fatias_ptbr,
+        marker=dict(colors=["#00ffff", "#39FF14", "#FF5C00", "#FFFF00", "#FF007F"]),
+        hovertemplate="<b>Grupo: %{label}</b><br>Representação: %{percent}<br>Valor: %{customdata}<extra></extra>",
+        hoverlabel=label_hover_config,
+        textfont=dict(size=15, weight='bold')
+    )])
+    fig_pie.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", title=titulo_pizza, margin=dict(l=20, r=20, t=40, b=20))
+
+    # GRÁFICO 5: Top 10 Municípios Críticos
+    df_top10 = df_f.groupby("nome_municipio")["vl_total"].sum().reset_index().sort_values(by="vl_total", ascending=False).head(10)
+    df_top10["vl_ptbr"] = df_top10["vl_total"].apply(formatar_valor_ptbr)
+    fig_top = px.bar(df_top10, x="vl_total", y="nome_municipio", orientation="h", custom_data=["vl_ptbr"], title="Top 10 Municípios com Maior Pressão Orçamentária", color="vl_total", color_continuous_scale=["#002200", "#39FF14", "#FFFF00", "#FF5C00"])
+    fig_top.update_traces(hovertemplate="<b>%{y}</b><br>Valor Destinado: %{customdata[0]}<extra></extra>", hoverlabel=label_hover_config)
+    fig_top.update_layout(template="plotly_dark", paper_bgcolor="#050505", plot_bgcolor="#050505", margin=dict(l=40, r=20, t=40, b=20), xaxis_title="Custo Repassado (R$)", yaxis_title="")
+
+    # TABELA DE DETALHAMENTO ANALÍTICO
     df_tab = df_f.sort_values(by="vl_total", ascending=False).head(150).copy()
     df_tab["qtd_total_formatada"] = df_tab["qtd_total"].apply(lambda x: f"{int(x):,}".replace(",", "."))
-    df_tab["vl_total_formatado"] = df_tab["vl_total"].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    df_tab["vl_total_formatado"] = df_tab["vl_total"].apply(formatar_valor_ptbr)
 
     return str_int, str_gas, str_med, maior_uf, maior_mun, fig_uf, fig_mun, fig_time, fig_pie, fig_top, df_tab.to_dict("records")
 
+# ==============================================================================
+# DISPARO DO SERVIDOR DE PRODUÇÃO
+# ==============================================================================
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8050, debug=False)
